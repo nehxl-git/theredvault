@@ -72,7 +72,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-def add_user(user):
+async def add_user(user):
     conn = db()
     cur = conn.cursor()
     cur.execute("SELECT user_id FROM users WHERE user_id=?", (user.id,))
@@ -85,7 +85,10 @@ def add_user(user):
             (user.id, user.first_name, uname, str(datetime.now()))
         )
         conn.commit()
-    conn.close()
+        conn.close()
+        await notify_new_user(user)
+    else:
+        conn.close()
 
 def get_user(user_id):
     conn = db()
@@ -146,6 +149,20 @@ async def reset_daily_limits():
 
 def await_sleep(seconds):
     return asyncio.sleep(seconds)
+
+async def notify_new_user(user):
+    try:
+        uname = f"@{user.username}" if user.username else "No Username"
+        msg = (
+            "<b>📥 New User Joined Bot</b>\n\n"
+            f"<b>Name:</b> {user.first_name}\n"
+            f"<b>Username:</b> {uname}\n"
+            f"<b>User ID:</b> <code>{user.id}</code>\n"
+            f"<b>Total Users:</b> {total_users()}"
+        )
+        await client.send_message(DUMP_GROUP_ID, msg, parse_mode="html")
+    except Exception as e:
+        LOGGER.error(f"Dump notify failed: {e}")
 
 # ================= FORCE JOIN =================
 
@@ -277,7 +294,7 @@ def save_last_video(user_id, msg_id):
 @client.on(events.NewMessage(pattern=r"^/start"))
 async def start_cmd(event):
     user = await event.get_sender()
-    add_user(user)
+    await add_user(user)
 
     args = event.raw_text.split()
 
@@ -376,7 +393,7 @@ async def profile_cmd(event):
 @client.on(events.NewMessage(pattern=r"^/send(?:\s+(.+))?$"))
 async def send_cmd(event):
     user = await event.get_sender()
-    add_user(user)
+    await add_user(user)
 
     if not await is_joined(client, user.id):
         return await force_join_message(event)
