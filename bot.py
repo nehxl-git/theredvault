@@ -300,7 +300,7 @@ async def start_cmd(event):
         "<i>Your private daily premium video provider.</i>\n\n"
         "<u>Available Commands</u>\n"
         "• /send - Get random video\n"
-        "• /send <tag> - Get specific video\n"
+        "• /send (genre) - Get specific video\n"
         "• /plans - View premium plans\n"
         "• /profile - Your usage profile\n"
         "• /contact - Purchase premium access"
