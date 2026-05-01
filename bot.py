@@ -352,6 +352,37 @@ async def plans_cmd(event):
     )
     await event.respond(txt, parse_mode="html")
 
+@client.on(events.NewMessage(pattern=r"^/info (\d+)"))
+async def info_cmd(event):
+    if not is_admin(event.sender_id):
+        return
+
+    uid = int(event.pattern_match.group(1))
+    user = get_user(uid)
+
+    if not user:
+        return await event.respond("<b>User not found.</b>", parse_mode="html")
+
+    premium = user[8] if user[8] else "No Premium"
+    banned = "Yes" if user[9] == 1 else "No"
+    uname = f"@{user[2]}" if user[2] else "None"
+
+    txt = (
+        "<b>📌 User Information</b>\n\n"
+        f"<b>Name:</b> {user[1]}\n"
+        f"<b>Username:</b> {uname}\n"
+        f"<b>User ID:</b> <code>{user[0]}</code>\n"
+        f"<b>Joined On:</b> {user[3][:19]}\n"
+        f"<b>Videos Used Today:</b> {user[4]}\n"
+        f"<b>Referred By:</b> {user[5]}\n"
+        f"<b>Referral Count:</b> {user[6]}\n"
+        f"<b>Bonus Videos:</b> {user[7]}\n"
+        f"<b>Premium Until:</b> {premium}\n"
+        f"<b>Banned:</b> {banned}"
+    )
+
+    await event.respond(txt, parse_mode="html")
+
 # ================= CONTACT =================
 
 @client.on(events.NewMessage(pattern=r"^/contact$"))
