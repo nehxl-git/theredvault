@@ -240,7 +240,7 @@ async def download_video(url: str) -> Path:
     # ================= CLIENT =================
 
 redgifs = RedGifsService()
-client = TelegramClient("TalkMazeBot", API_ID, API_HASH)
+client = TelegramClient("Bot", API_ID, API_HASH)
 
 # ================= HELPERS =================
 
@@ -296,10 +296,11 @@ async def start_cmd(event):
         return await force_join_message(event)
 
     text = (
-        "<b>🎬 Welcome to TalkMaze Premium Media Bot</b>\n"
+        "<b>🎬 Welcome to The Red Vault</b>\n"
         "<i>Your private daily premium video provider.</i>\n\n"
         "<u>Available Commands</u>\n"
-        "• /send - Get random premium video\n"
+        "• /send - Get random video\n"
+        "• /send <tag> - Get specific video\n"
         "• /plans - View premium plans\n"
         "• /profile - Your usage profile\n"
         "• /contact - Purchase premium access"
@@ -325,8 +326,8 @@ async def plans_cmd(event):
     txt = (
         "<b>💎 Premium Subscription Plans</b>\n\n"
         "<u>Choose your access duration:</u>\n\n"
-        "• <b>1 Day</b> — ₹10\n"
-        "• <b>3 Days</b> — ₹20\n"
+        "• <b>1 Day</b> — ₹20\n"
+        "• <b>3 Days</b> — ₹30\n"
         "• <b>1 Week</b> — ₹50\n"
         "• <b>1 Month</b> — ₹99\n\n"
         "<i>Unlimited premium media access included.</i>\n\n"
