@@ -218,58 +218,58 @@ class RedGifsService:
         caption = f"<b>🎬 Your Video is Ready</b>\n<i>Enjoy premium content.</i>"
         return query, video_url, caption
 
-    async def _pick_from_tag(self, query: str):
-    if self.api is None:
+        async def _pick_from_tag(self, query: str):
+        if self.api is None:
+            return None
+
+        query = query.lower().strip()
+
+        result = await self.api.search(query, count=120)
+        gifs = result.gifs or []
+
+        strict_matches = []
+        semi_matches = []
+
+        for gif in gifs:
+            if not gif.urls.sd:
+                continue
+
+            gid = str(getattr(gif, "id", "")).lower()
+            title = str(getattr(gif, "title", "")).lower()
+
+            raw_tags = getattr(gif, "tags", [])
+            tags = " ".join([str(t).lower() for t in raw_tags])
+
+            if query == gid or query in title or query in tags:
+                strict_matches.append(gif)
+            elif query in (title + " " + tags):
+                semi_matches.append(gif)
+
+        if strict_matches:
+            return random.choice(strict_matches)
+
+        if semi_matches:
+            return random.choice(semi_matches)
+
+        suggestions = await self.api.fetch_tag_suggestions(query)
+        for suggestion in suggestions[:6]:
+            sname = suggestion["name"].lower()
+
+            if query not in sname and sname not in query:
+                continue
+
+            result = await self.api.search(sname, count=80)
+            sgifs = result.gifs or []
+
+            filtered = []
+            for gif in sgifs:
+                if gif.urls.sd:
+                    filtered.append(gif)
+
+            if filtered:
+                return random.choice(filtered)
+
         return None
-
-    query = query.lower().strip()
-
-    result = await self.api.search(query, count=120)
-    gifs = result.gifs or []
-
-    strict_matches = []
-    semi_matches = []
-
-    for gif in gifs:
-        if not gif.urls.sd:
-            continue
-
-        gid = str(getattr(gif, "id", "")).lower()
-        title = str(getattr(gif, "title", "")).lower()
-
-        raw_tags = getattr(gif, "tags", [])
-        tags = " ".join([str(t).lower() for t in raw_tags])
-
-        if query == gid or query in title or query in tags:
-            strict_matches.append(gif)
-        elif query in (title + " " + tags):
-            semi_matches.append(gif)
-
-    if strict_matches:
-        return random.choice(strict_matches)
-
-    if semi_matches:
-        return random.choice(semi_matches)
-
-    suggestions = await self.api.fetch_tag_suggestions(query)
-    for suggestion in suggestions[:6]:
-        sname = suggestion["name"].lower()
-
-        if query not in sname and sname not in query:
-            continue
-
-        result = await self.api.search(sname, count=80)
-        sgifs = result.gifs or []
-
-        filtered = []
-        for gif in sgifs:
-            if gif.urls.sd:
-                filtered.append(gif)
-
-        if filtered:
-            return random.choice(filtered)
-
-    return None
     
     async def _pick_from_trending(self):
         top_week = await self.api.get_top_this_week(count=100)
