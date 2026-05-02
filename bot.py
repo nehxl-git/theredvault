@@ -237,7 +237,7 @@ class RedGifsService:
         return None
 
     async def _pick_from_trending(self):
-        top_week = await self.api.get_top_this_week(count=20)
+        top_week = await self.api.get_top_this_week(count=200)
         gifs = [gif for gif in (top_week.gifs or []) if gif.urls.sd]
         return random.choice(gifs)
 
