@@ -193,52 +193,86 @@ class RedGifsService:
         self.api: Optional[RedGifsAPI] = None
         self._lock = asyncio.Lock()
 
-    async def start(self):
-        async with self._lock:
-            if self.api is not None:
-                return
+        async def ensure_login(self):
+        try:
+            if self.api is None:
+                self.api = RedGifsAPI()
+                await self.api.login()
+        except:
             self.api = RedGifsAPI()
             await self.api.login()
-            LOGGER.info("Redgifs API connected")
-
-    async def close(self):
-        async with self._lock:
-            if self.api:
-                await self.api.close()
-                self.api = None
 
     async def get_random_video(self, tag=None):
+        await self.ensure_login()
         query = (tag or self.default_tag).strip()
 
-        selected = await self._pick_from_tag(query)
+        try:
+            selected = await self._pick_from_tag(query)
+        except Exception:
+            await self.api.login()
+            selected = await self._pick_from_tag(query)
+
         if selected is None:
-            selected = await self._pick_from_trending()
+            try:
+                selected = await self._pick_from_tag(self.default_tag)
+            except Exception:
+                await self.api.login()
+                selected = await self._pick_from_tag(self.default_tag)
+
+        if selected is None:
+            try:
+                selected = await self._pick_from_trending()
+            except Exception:
+                await self.api.login()
+                selected = await self._pick_from_trending()
 
         video_url = selected.urls.hd or selected.urls.sd
-        caption = f"<b>🎬 Your Video is Ready</b>\n<i>Enjoy premium content.</i>"
+        caption = "<b>🎬 Your Video is Ready</b>\n<i>Enjoy premium content.</i>"
         return query, video_url, caption
 
-    async def _pick_from_tag(self, query):
-        creators = await self.api.search_creators(tags=[query])
-        creator_items = creators.items or []
+    async def _pick_from_tag(self, query: str):
+        if self.api is None:
+            return None
 
-        if creator_items:
-            creator = random.choice(creator_items)
-            creator_result = await self.api.search_creator(creator.username, count=self.result_count)
-            gifs = [gif for gif in creator_result.gifs if gif.urls.sd]
-            if gifs:
-                return random.choice(gifs)
+        query = query.lower().strip()
 
-        result = await self.api.search(query, count=self.result_count)
-        gifs = [gif for gif in (result.gifs or []) if gif.urls.sd]
-        if gifs:
-            return random.choice(gifs)
+        result = await self.api.search(query, count=120)
+        gifs = result.gifs or []
+
+        strict_matches = []
+        semi_matches = []
+
+        for gif in gifs:
+            if not gif.urls.sd:
+                continue
+
+            gid = str(getattr(gif, "id", "")).lower()
+            title = str(getattr(gif, "title", "")).lower()
+            raw_tags = getattr(gif, "tags", [])
+            tags = " ".join([str(t).lower() for t in raw_tags])
+
+            if query == gid or query in title or query in tags:
+                strict_matches.append(gif)
+            elif query in (title + " " + tags):
+                semi_matches.append(gif)
+
+        if strict_matches:
+            return random.choice(strict_matches)
+
+        if semi_matches:
+            return random.choice(semi_matches)
 
         return None
 
     async def _pick_from_trending(self):
         top_week = await self.api.get_top_this_week(count=200)
         gifs = [gif for gif in (top_week.gifs or []) if gif.urls.sd]
+
+        if gifs:
+            return random.choice(gifs)
+
+        trending = await self.api.get_trending_gifs()
+        gifs = [gif for gif in trending if gif.urls.sd]
         return random.choice(gifs)
 
 async def download_video(url: str) -> Path:
