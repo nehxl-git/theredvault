@@ -193,7 +193,21 @@ class RedGifsService:
         self.api: Optional[RedGifsAPI] = None
         self._lock = asyncio.Lock()
 
-        async def ensure_login(self):
+    async def start(self):
+        async with self._lock:
+            if self.api is not None:
+                return
+            self.api = RedGifsAPI()
+            await self.api.login()
+            LOGGER.info("Redgifs API connected")
+
+    async def close(self):
+        async with self._lock:
+            if self.api:
+                await self.api.close()
+                self.api = None
+
+    async def ensure_login(self):
         try:
             if self.api is None:
                 self.api = RedGifsAPI()
@@ -235,7 +249,6 @@ class RedGifsService:
             return None
 
         query = query.lower().strip()
-
         result = await self.api.search(query, count=120)
         gifs = result.gifs or []
 
