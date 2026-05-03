@@ -185,9 +185,8 @@ async def force_join_message(event):
     )
 
 # ================= REDGIFS SERVICE =================
-
 class RedGifsService:
-    def __init__(self, default_tag="amateur", result_count=40):
+    def __init__(self, default_tag="amateur", result_count=100):
         self.default_tag = default_tag
         self.result_count = result_count
         self.api: Optional[RedGifsAPI] = None
@@ -195,8 +194,6 @@ class RedGifsService:
 
     async def start(self):
         async with self._lock:
-            if self.api is not None:
-                return
             self.api = RedGifsAPI()
             await self.api.login()
             LOGGER.info("Redgifs API connected")
@@ -207,60 +204,65 @@ class RedGifsService:
                 await self.api.close()
                 self.api = None
 
-    async def ensure_login(self):
-        try:
-            if self.api is None:
-                self.api = RedGifsAPI()
-                await self.api.login()
-        except:
+    async def refresh_api(self):
+        async with self._lock:
+            try:
+                if self.api:
+                    await self.api.close()
+            except:
+                pass
+
             self.api = RedGifsAPI()
             await self.api.login()
 
     async def get_random_video(self, tag=None):
-        await self.ensure_login()
-        query = (tag or self.default_tag).strip()
+        query = (tag or self.default_tag).strip().lower()
 
-        try:
-            selected = await self._pick_from_tag(query)
-        except Exception:
-            await self.api.login()
-            selected = await self._pick_from_tag(query)
+        await self.refresh_api()
+
+        selected = await self._pick_from_tag(query)
 
         if selected is None:
-            try:
-                selected = await self._pick_from_tag(self.default_tag)
-            except Exception:
-                await self.api.login()
-                selected = await self._pick_from_tag(self.default_tag)
+            selected = await self._pick_from_tag(self.default_tag)
 
         if selected is None:
-            try:
-                selected = await self._pick_from_trending()
-            except Exception:
-                await self.api.login()
-                selected = await self._pick_from_trending()
+            selected = await self._pick_from_trending()
+
+        if selected is None:
+            raise RuntimeError("No Redgifs media found")
 
         video_url = selected.urls.hd or selected.urls.sd
         caption = "<b>🎬 Your Video is Ready</b>\n<i>Enjoy premium content.</i>"
         return query, video_url, caption
 
-        async def _pick_from_tag(self, query: str):
+    async def get_random_image(self, tag=None):
+        query = (tag or self.default_tag).strip().lower()
+
+        await self.refresh_api()
+
+        selected = await self._pick_from_tag(query)
+
+        if selected is None:
+            selected = await self._pick_from_tag(self.default_tag)
+
+        if selected is None:
+            raise RuntimeError("No Redgifs image found")
+
+        image_url = selected.urls.poster or selected.urls.thumbnail
+        caption = "<b>🖼 Premium Image Delivered</b>"
+        return query, image_url, caption
+
+    async def _pick_from_tag(self, query: str):
         if self.api is None:
             return None
 
-        query = query.lower().strip()
-
         try:
-            result = await self.api.search(query, count=120)
-            gifs = result.gifs or []
+            result = await self.api.search(query, count=self.result_count)
         except Exception as e:
-            LOGGER.error(f"Search failed for {query}: {e}")
-            await self.api.login()
-            try:
-                result = await self.api.search(query, count=80)
-                gifs = result.gifs or []
-            except:
-                return None
+            LOGGER.error(f"Search failed: {e}")
+            return None
+
+        gifs = result.gifs or []
 
         strict_matches = []
         semi_matches = []
@@ -271,12 +273,11 @@ class RedGifsService:
 
             gid = str(getattr(gif, "id", "")).lower()
             title = str(getattr(gif, "title", "")).lower()
-            raw_tags = getattr(gif, "tags", [])
-            tags = " ".join([str(t).lower() for t in raw_tags])
+            tags = " ".join([str(t).lower() for t in getattr(gif, "tags", [])])
 
-            if query == gid or query in title or query in tags:
+            if query in gid or query in title or query in tags:
                 strict_matches.append(gif)
-            elif query in (title + " " + tags):
+            else:
                 semi_matches.append(gif)
 
         if strict_matches:
@@ -288,20 +289,18 @@ class RedGifsService:
         return None
 
     async def _pick_from_trending(self):
+        if self.api is None:
+            return None
+
         try:
-            top_week = await self.api.get_top_this_week(count=200)
-        except:
-            await self.api.login()
-            top_week = await self.api.get_top_this_week(count=100)
+            top_week = await self.api.get_top_this_week(count=150)
+            gifs = [gif for gif in (top_week.gifs or []) if gif.urls.sd]
+            if gifs:
+                return random.choice(gifs)
+        except Exception as e:
+            LOGGER.error(f"Trending failed: {e}")
 
-        gifs = [gif for gif in (top_week.gifs or []) if gif.urls.sd]
-
-        if gifs:
-            return random.choice(gifs)
-
-        trending = await self.api.get_trending_gifs()
-        gifs = [gif for gif in trending if gif.urls.sd]
-        return random.choice(gifs))
+        return None
 
 async def download_video(url: str) -> Path:
     timeout = aiohttp.ClientTimeout(total=120)
