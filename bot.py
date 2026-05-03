@@ -244,13 +244,23 @@ class RedGifsService:
         caption = "<b>🎬 Your Video is Ready</b>\n<i>Enjoy premium content.</i>"
         return query, video_url, caption
 
-    async def _pick_from_tag(self, query: str):
+        async def _pick_from_tag(self, query: str):
         if self.api is None:
             return None
 
         query = query.lower().strip()
-        result = await self.api.search(query, count=120)
-        gifs = result.gifs or []
+
+        try:
+            result = await self.api.search(query, count=120)
+            gifs = result.gifs or []
+        except Exception as e:
+            LOGGER.error(f"Search failed for {query}: {e}")
+            await self.api.login()
+            try:
+                result = await self.api.search(query, count=80)
+                gifs = result.gifs or []
+            except:
+                return None
 
         strict_matches = []
         semi_matches = []
@@ -278,7 +288,12 @@ class RedGifsService:
         return None
 
     async def _pick_from_trending(self):
-        top_week = await self.api.get_top_this_week(count=200)
+        try:
+            top_week = await self.api.get_top_this_week(count=200)
+        except:
+            await self.api.login()
+            top_week = await self.api.get_top_this_week(count=100)
+
         gifs = [gif for gif in (top_week.gifs or []) if gif.urls.sd]
 
         if gifs:
@@ -286,7 +301,7 @@ class RedGifsService:
 
         trending = await self.api.get_trending_gifs()
         gifs = [gif for gif in trending if gif.urls.sd]
-        return random.choice(gifs)
+        return random.choice(gifs))
 
 async def download_video(url: str) -> Path:
     timeout = aiohttp.ClientTimeout(total=120)
